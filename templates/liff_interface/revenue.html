@@ -1,0 +1,161 @@
+{% extends 'liff_interface/base.html' %}
+
+{% block title %}營收回報 | 餐飲管理系統{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">今日營收回報</h5>
+            </div>
+            <div class="card-body">
+                <form id="revenueForm">
+                    <div class="mb-3">
+                        <label for="storeInfo" class="form-label">分店</label>
+                        <input type="text" class="form-control" id="storeInfo" value="{{ store.name }}" disabled>
+                        <input type="hidden" id="storeId" value="{{ store.id }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="reportDate" class="form-label">日期</label>
+                        <input type="date" class="form-control" id="reportDate" value="{{ today|date:'Y-m-d' }}" {% if today_revenue %}disabled{% endif %}>
+                    </div>
+                    <div class="mb-4">
+                        <label for="revenueAmount" class="form-label">營收金額 (NT$)</label>
+                        <input type="number" class="form-control form-control-lg" id="revenueAmount" placeholder="請輸入今日營收金額" min="0" step="1" {% if today_revenue %}value="{{ today_revenue.amount }}"{% endif %} required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                            <i class="fas fa-paper-plane me-2"></i>提交營收報告
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if recent_revenues %}
+        <div class="card mt-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">近期營收紀錄</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>日期</th>
+                                <th class="text-end">營收金額</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for revenue in recent_revenues %}
+                            <tr>
+                                <td>{{ revenue.date|date:"Y-m-d" }}</td>
+                                <td class="text-end">NT$ {{ revenue.amount|floatformat:0 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-body text-center p-5">
+                <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
+                <h3 class="mt-4 mb-3">提交成功！</h3>
+                <p class="mb-4">您的營收報告已成功提交。</p>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">確定</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Error Modal -->
+<div class="modal fade" id="errorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-body text-center p-5">
+                <i class="fas fa-exclamation-circle text-danger" style="font-size: 4rem;"></i>
+                <h3 class="mt-4 mb-3">提交失敗</h3>
+                <p class="mb-4" id="errorMessage">發生錯誤，請稍後再試。</p>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">確定</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('revenueForm');
+        const successModal = new bootstrap.Modal(document.getElementById('successModal'));
+        const errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
+        
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Get form values
+            const storeId = document.getElementById('storeId').value;
+            const date = document.getElementById('reportDate').value;
+            const amount = document.getElementById('revenueAmount').value;
+            
+            // Validate input
+            if (!amount || amount < 0) {
+                document.getElementById('errorMessage').textContent = '請輸入有效的營收金額';
+                errorModal.show();
+                return;
+            }
+            
+            // Show loading state
+            const submitBtn = document.getElementById('submitBtn');
+            const originalBtnText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>處理中...';
+            
+            // Submit data
+            fetch('{% url "liff_interface:submit_revenue" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    store_id: storeId,
+                    date: date,
+                    amount: amount
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    successModal.show();
+                    // Reload page after modal is closed
+                    document.getElementById('successModal').addEventListener('hidden.bs.modal', function () {
+                        window.location.reload();
+                    });
+                } else {
+                    document.getElementById('errorMessage').textContent = data.message || '發生錯誤，請稍後再試';
+                    errorModal.show();
+                }
+            })
+            .catch(error => {
+                document.getElementById('errorMessage').textContent = '發生錯誤，請稍後再試';
+                errorModal.show();
+                console.error('Error:', error);
+            })
+            .finally(() => {
+                // Restore button state
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+            });
+        });
+    });
+</script>
+{% endblock %} 

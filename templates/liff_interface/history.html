@@ -1,0 +1,125 @@
+{% extends 'liff_interface/base.html' %}
+
+{% block title %}歷史紀錄 | 餐飲管理系統{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Tabs for switching between revenue and order history -->
+        <ul class="nav nav-tabs mb-4" id="historyTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="revenue-tab" data-bs-toggle="tab" data-bs-target="#revenue-history" type="button" role="tab" aria-controls="revenue-history" aria-selected="true">
+                    <i class="fas fa-chart-line me-2"></i>營收紀錄
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="order-tab" data-bs-toggle="tab" data-bs-target="#order-history" type="button" role="tab" aria-controls="order-history" aria-selected="false">
+                    <i class="fas fa-shopping-basket me-2"></i>叫菜紀錄
+                </button>
+            </li>
+        </ul>
+        
+        <!-- Tab content -->
+        <div class="tab-content" id="historyTabContent">
+            <!-- Revenue History Tab -->
+            <div class="tab-pane fade show active" id="revenue-history" role="tabpanel" aria-labelledby="revenue-tab">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">{{ store.name }} - 營收歷史紀錄</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        {% if revenues %}
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>日期</th>
+                                        <th class="text-end">營收金額</th>
+                                        <th class="text-center">提交時間</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for revenue in revenues %}
+                                    <tr>
+                                        <td>{{ revenue.date|date:"Y-m-d" }}</td>
+                                        <td class="text-end">NT$ {{ revenue.amount|floatformat:0 }}</td>
+                                        <td class="text-center">{{ revenue.submitted_at|date:"H:i" }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center p-4">
+                            <i class="fas fa-info-circle text-info mb-3" style="font-size: 3rem;"></i>
+                            <p class="mb-0">尚無營收紀錄</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Order History Tab -->
+            <div class="tab-pane fade" id="order-history" role="tabpanel" aria-labelledby="order-tab">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">{{ store.name }} - 叫菜歷史紀錄</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if orders %}
+                        <div class="accordion" id="orderAccordion">
+                            {% for order in orders %}
+                            <div class="accordion-item mb-2">
+                                <h2 class="accordion-header" id="heading{{ order.id }}">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ order.id }}" aria-expanded="false" aria-controls="collapse{{ order.id }}">
+                                        <div class="d-flex justify-content-between align-items-center w-100 me-3">
+                                            <div>
+                                                <span class="fw-bold">{{ order.date|date:"Y-m-d" }}</span>
+                                                <span class="badge {% if order.is_completed %}bg-success{% else %}bg-warning{% endif %} ms-2">
+                                                    {% if order.is_completed %}已完成{% else %}處理中{% endif %}
+                                                </span>
+                                            </div>
+                                            <small class="text-muted">{{ order.submitted_at|date:"H:i" }} 提交</small>
+                                        </div>
+                                    </button>
+                                </h2>
+                                <div id="collapse{{ order.id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ order.id }}" data-bs-parent="#orderAccordion">
+                                    <div class="accordion-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-sm">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>食材名稱</th>
+                                                        <th>單位</th>
+                                                        <th class="text-end">數量</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for item in order.items.all %}
+                                                    <tr>
+                                                        <td>{{ item.ingredient.name }}</td>
+                                                        <td>{{ item.ingredient.unit }}</td>
+                                                        <td class="text-end">{{ item.quantity }}</td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-center p-4">
+                            <i class="fas fa-info-circle text-info mb-3" style="font-size: 3rem;"></i>
+                            <p class="mb-0">尚無叫菜紀錄</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

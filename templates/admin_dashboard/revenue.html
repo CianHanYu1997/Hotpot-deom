@@ -1,0 +1,365 @@
+{% extends 'admin_dashboard/base.html' %}
+
+{% block title %}營收統計 | 餐飲管理系統{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>營收統計分析</h2>
+                <button type="button" class="btn btn-success" id="exportBtn">
+                    <i class="fas fa-file-export me-1"></i>匯出Excel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 篩選區域 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-filter me-2"></i>篩選條件</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">地區</label>
+                    <select name="region" class="form-select">
+                        <option value="">全部地區</option>
+                        {% for region_code, region_name in regions %}
+                        <option value="{{ region_code }}" {% if selected_region == region_code %}selected{% endif %}>
+                            {{ region_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">分店</label>
+                    <select name="store_id" class="form-select">
+                        <option value="">全部分店</option>
+                        {% for store in stores %}
+                        <option value="{{ store.id }}" {% if selected_store == store.id|stringformat:"s" %}selected{% endif %}>
+                            {{ store.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">狀態</label>
+                    <select name="status" class="form-select">
+                        <option value="">全部狀態</option>
+                        {% for value, display in status_choices %}
+                        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>
+                            {{ display }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">開始日期</label>
+                    <input type="date" name="start_date" class="form-control" value="{{ start_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">結束日期</label>
+                    <input type="date" name="end_date" class="form-control" value="{{ end_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 總覽卡片 -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">總營收</h6>
+                            <h4 class="mb-0">${{ overall_total|floatformat:0 }}</h4>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-dollar-sign fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">平均營收</h6>
+                            <h4 class="mb-0">${{ overall_avg|floatformat:0 }}</h4>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-chart-line fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">總記錄數</h6>
+                            <h4 class="mb-0">{{ total_records }}</h4>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-list fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">分店數量</h6>
+                            <h4 class="mb-0">{{ stores.count }}</h4>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-store fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- 地區營收概覽圖表 -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-map-marked-alt me-2"></i>地區營收概覽</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="regionChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 營收趨勢圖表 -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-chart-area me-2"></i>營收趨勢 (近7天)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="trendChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 地區統計表格 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-table me-2"></i>地區統計詳情</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>地區</th>
+                            <th>分店數</th>
+                            <th class="text-end">總營收</th>
+                            <th class="text-end">平均營收</th>
+                            <th class="text-center">記錄數</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for region in regional_data %}
+                        <tr>
+                            <td>
+                                <span class="fw-bold">{{ region.region_name }}</span>
+                            </td>
+                            <td>{{ region.store_count }}</td>
+                            <td class="text-end">
+                                <strong>${{ region.total|floatformat:0 }}</strong>
+                            </td>
+                            <td class="text-end">${{ region.average|floatformat:0 }}</td>
+                            <td class="text-center">{{ region.count }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分店詳細資料 -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-store me-2"></i>分店營收詳情</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for store_revenue in store_revenues %}
+                <div class="col-md-6 mb-3">
+                    <div class="card border-left-primary">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">{{ store_revenue.store.name }}</h6>
+                            <span class="badge bg-secondary">{{ store_revenue.store.get_region_display }}</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <div class="border-end">
+                                        <h5 class="text-primary">${{ store_revenue.total|floatformat:0 }}</h5>
+                                        <small class="text-muted">總營收</small>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <h5 class="text-success">${{ store_revenue.average|floatformat:0 }}</h5>
+                                    <small class="text-muted">平均營收</small>
+                                </div>
+                            </div>
+                            <hr>
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="text-info">
+                                        <strong>{{ store_revenue.count }}</strong><br>
+                                        <small>總記錄</small>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="text-success">
+                                        <strong>{{ store_revenue.submitted_count }}</strong><br>
+                                        <small>已提交</small>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="text-warning">
+                                        <strong>{{ store_revenue.pending_count }}</strong><br>
+                                        <small>未提交</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12">
+                    <div class="alert alert-info text-center">
+                        <i class="fas fa-info-circle me-2"></i>
+                        沒有符合條件的營收資料
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 地區營收圓餅圖
+    const regionCtx = document.getElementById('regionChart').getContext('2d');
+    const regionData = [
+        {% for region in regional_data %}
+        {
+            label: '{{ region.region_name }}',
+            value: {{ region.total }},
+            color: '{% cycle "rgba(54, 162, 235, 0.8)" "rgba(255, 99, 132, 0.8)" "rgba(75, 192, 192, 0.8)" "rgba(255, 206, 86, 0.8)" "rgba(153, 102, 255, 0.8)" "rgba(255, 159, 64, 0.8)" %}'
+        },
+        {% endfor %}
+    ];
+
+    new Chart(regionCtx, {
+        type: 'doughnut',
+        data: {
+            labels: regionData.map(d => d.label),
+            datasets: [{
+                data: regionData.map(d => d.value),
+                backgroundColor: regionData.map(d => d.color),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ': $' + context.parsed.toLocaleString();
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // 營收趨勢線圖
+    const trendCtx = document.getElementById('trendChart').getContext('2d');
+    const trendData = {{ daily_data|safe }};
+
+    new Chart(trendCtx, {
+        type: 'line',
+        data: {
+            labels: trendData.map(d => d.date),
+            datasets: [{
+                label: '營收',
+                data: trendData.map(d => d.revenue),
+                borderColor: 'rgba(54, 162, 235, 1)',
+                backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return '營收: $' + context.parsed.y.toLocaleString();
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '$' + value.toLocaleString();
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // 匯出功能
+    document.getElementById('exportBtn').addEventListener('click', function() {
+        const params = new URLSearchParams(window.location.search);
+        const exportUrl = `{% url 'admin_dashboard:export_revenue' %}?${params.toString()}`;
+        window.open(exportUrl, '_blank');
+    });
+});
+</script>
+{% endblock %}

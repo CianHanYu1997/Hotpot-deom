@@ -1,0 +1,133 @@
+{% extends 'admin_dashboard/base.html' %}
+
+{% block title %}營收變更日誌 - 餐廳管理系統{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">營收變更日誌</h4>
+                    <a href="{% url 'admin_dashboard:revenue_crud' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> 返回管理
+                    </a>
+                </div>
+                
+                <div class="card-body">
+                    <!-- 篩選表單 -->
+                    <form method="get" class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label">分店</label>
+                            <select name="store_id" class="form-select">
+                                <option value="">全部分店</option>
+                                {% for store in stores %}
+                                <option value="{{ store.id }}" {% if selected_store == store.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ store.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">操作類型</label>
+                            <select name="action" class="form-select">
+                                <option value="">全部操作</option>
+                                {% for value, display in action_choices %}
+                                <option value="{{ value }}" {% if selected_action == value %}selected{% endif %}>
+                                    {{ display }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-5 d-flex align-items-end">
+                            <button type="submit" class="btn btn-outline-primary me-2">
+                                <i class="fas fa-search"></i> 篩選
+                            </button>
+                            <a href="{% url 'admin_dashboard:revenue_logs' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> 清除
+                            </a>
+                        </div>
+                    </form>
+
+                    <!-- 日誌列表 -->
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>時間</th>
+                                    <th>分店</th>
+                                    <th>日期</th>
+                                    <th>操作</th>
+                                    <th>變更內容</th>
+                                    <th>操作人員</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in logs %}
+                                <tr>
+                                    <td>
+                                        <small>{{ log.changed_at|date:"m/d H:i:s" }}</small>
+                                    </td>
+                                    <td>{{ log.store.name }}</td>
+                                    <td>{{ log.date }}</td>
+                                    <td>
+                                        {% if log.action == 'create' %}
+                                            <span class="badge bg-success"><i class="fas fa-plus"></i> {{ log.get_action_display }}</span>
+                                        {% elif log.action == 'update' %}
+                                            <span class="badge bg-warning"><i class="fas fa-edit"></i> {{ log.get_action_display }}</span>
+                                        {% elif log.action == 'delete' %}
+                                            <span class="badge bg-danger"><i class="fas fa-trash"></i> {{ log.get_action_display }}</span>
+                                        {% elif log.action == 'submit' %}
+                                            <span class="badge bg-primary"><i class="fas fa-paper-plane"></i> {{ log.get_action_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="small">
+                                            {% if log.old_amount and log.new_amount %}
+                                                金額: ${{ log.old_amount|floatformat:0 }} → ${{ log.new_amount|floatformat:0 }}
+                                            {% elif log.new_amount and log.action == 'create' %}
+                                                新增金額: ${{ log.new_amount|floatformat:0 }}
+                                            {% elif log.old_amount and log.action == 'delete' %}
+                                                刪除金額: ${{ log.old_amount|floatformat:0 }}
+                                            {% endif %}
+                                            
+                                            {% if log.old_status and log.new_status %}
+                                                <br>狀態: {{ log.old_status }} → {{ log.new_status }}
+                                            {% elif log.new_status and log.action == 'create' %}
+                                                <br>狀態: {{ log.new_status }}
+                                            {% elif log.old_status and log.action == 'delete' %}
+                                                <br>狀態: {{ log.old_status }}
+                                            {% endif %}
+                                            
+                                            {% if log.notes %}
+                                                <div class="text-muted mt-1">{{ log.notes }}</div>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark">{{ log.changed_by }}</span>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        沒有找到符合條件的變更記錄
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    {% if logs %}
+                    <div class="text-muted small mt-3">
+                        <i class="fas fa-info-circle"></i> 
+                        顯示最近 100 筆記錄，如需查看更多請使用篩選功能
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

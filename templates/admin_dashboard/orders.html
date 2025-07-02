@@ -1,0 +1,393 @@
+{% extends 'admin_dashboard/base.html' %}
+
+{% block title %}叫菜管理 | 餐飲管理系統{% endblock %}
+
+{% load custom_filters %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">叫菜管理</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="exportBtn">
+                <i class="fas fa-file-export me-1"></i>匯出叫菜清單
+            </button>
+        </div>
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-danger" id="sendReminderBtn">
+                <i class="fas fa-bell me-1"></i>發送提醒
+            </button>
+        </div>
+        <span class="text-muted">{{ today|date:"Y-m-d" }}</span>
+    </div>
+</div>
+
+<!-- Status Summary -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">今日叫菜狀態</h5>
+                    <div>
+                        {% with completed=store_orders|length %}
+                        {% with incomplete=0 %}
+                        {% for so in store_orders %}
+                            {% if not so.order or not so.order.is_completed %}
+                                {% with incomplete=incomplete|add:1 %}{% endwith %}
+                            {% endif %}
+                        {% endfor %}
+                        <span class="badge bg-success me-2">已完成: {{ completed|sub:incomplete }}</span>
+                        <span class="badge bg-warning">未完成: {{ incomplete }}</span>
+                        {% endwith %}
+                        {% endwith %}
+                    </div>
+                </div>
+                <div class="progress mt-3" style="height: 10px;">
+                    {% with completed=store_orders|length %}
+                    {% with incomplete=0 %}
+                    {% for so in store_orders %}
+                        {% if not so.order or not so.order.is_completed %}
+                            {% with incomplete=incomplete|add:1 %}{% endwith %}
+                        {% endif %}
+                    {% endfor %}
+                    {% with percentage=completed|sub:incomplete|div:completed|mul:100 %}
+                    <div class="progress-bar bg-success" role="progressbar" style="width: {{ percentage }}%;" aria-valuenow="{{ percentage }}" aria-valuemin="0" aria-valuemax="100"></div>
+                    {% endwith %}
+                    {% endwith %}
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Store Orders -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">分店叫菜狀態</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for store_order in store_orders %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">{{ store_order.store.name }}</h6>
+                            {% if store_order.order and store_order.order.is_completed %}
+                            <span class="badge bg-success">已完成</span>
+                            {% else %}
+                            <span class="badge bg-warning">未完成</span>
+                            {% endif %}
+                        </div>
+                        {% if store_order.order %}
+                        <small class="text-muted">提交時間: {{ store_order.order.submitted_at|date:"H:i" }}</small>
+                        <button class="btn btn-sm btn-outline-primary mt-2 view-order-btn" data-store-id="{{ store_order.store.id }}">
+                            查看明細
+                        </button>
+                        {% else %}
+                        <small class="text-muted">尚未提交</small>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">食材需求彙總</h5>
+            </div>
+            <div class="card-body">
+                {% if ingredient_totals %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>食材名稱</th>
+                                <th>單位</th>
+                                <th>分類</th>
+                                <th class="text-end">總數量</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for id, data in ingredient_totals.items %}
+                            {% if data.total_quantity > 0 %}
+                            <tr>
+                                <td>{{ data.ingredient.name }}</td>
+                                <td>{{ data.ingredient.unit }}</td>
+                                <td>{{ data.ingredient.category }}</td>
+                                <td class="text-end">{{ data.total_quantity }}</td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-info-circle text-info mb-3" style="font-size: 3rem;"></i>
+                    <p class="mb-0">尚無叫菜資料</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Order Detail Modal -->
+<div class="modal fade" id="orderDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="orderDetailTitle">叫菜明細</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center" id="orderDetailLoading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">載入中...</p>
+                </div>
+                <div id="orderDetailContent" style="display: none;">
+                    <div class="mb-3">
+                        <strong>分店:</strong> <span id="orderDetailStore"></span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>提交時間:</strong> <span id="orderDetailTime"></span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>食材</th>
+                                    <th>單位</th>
+                                    <th class="text-end">數量</th>
+                                </tr>
+                            </thead>
+                            <tbody id="orderDetailItems">
+                                <!-- Items will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="alert alert-info" id="orderDetailEmpty" style="display: none;">
+                    <i class="fas fa-info-circle me-2"></i>
+                    此分店尚未提交叫菜資料
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Notification Modal -->
+<div class="modal fade" id="notificationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">發送提醒</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>確定要發送提醒給未完成叫菜的分店嗎？</p>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    提醒將透過Line發送給店長
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="confirmNotificationBtn">
+                    確認發送
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-body text-center p-5">
+                <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
+                <h3 class="mt-4 mb-3">發送成功！</h3>
+                <p class="mb-4" id="successMessage">提醒已成功發送。</p>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">確定</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Error Modal -->
+<div class="modal fade" id="errorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-body text-center p-5">
+                <i class="fas fa-exclamation-circle text-danger" style="font-size: 4rem;"></i>
+                <h3 class="mt-4 mb-3">發送失敗</h3>
+                <p class="mb-4" id="errorMessage">發生錯誤，請稍後再試。</p>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">確定</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Store orders data for modal
+        const storeOrders = {
+            {% for store_order in store_orders %}
+            "{{ store_order.store.id }}": {
+                store: "{{ store_order.store.name }}",
+                hasOrder: {% if store_order.order %}true{% else %}false{% endif %},
+                {% if store_order.order %}
+                time: "{{ store_order.order.submitted_at|date:'Y-m-d H:i' }}",
+                items: [
+                    {% for item in store_order.items %}
+                    {
+                        name: "{{ item.ingredient.name }}",
+                        unit: "{{ item.ingredient.unit }}",
+                        quantity: {{ item.quantity }}
+                    },
+                    {% endfor %}
+                ]
+                {% endif %}
+            },
+            {% endfor %}
+        };
+        
+        // Order detail modal
+        const orderDetailModal = new bootstrap.Modal(document.getElementById('orderDetailModal'));
+        const viewOrderBtns = document.querySelectorAll('.view-order-btn');
+        
+        viewOrderBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const storeId = this.dataset.storeId;
+                const storeData = storeOrders[storeId];
+                
+                // Reset modal state
+                document.getElementById('orderDetailLoading').style.display = 'block';
+                document.getElementById('orderDetailContent').style.display = 'none';
+                document.getElementById('orderDetailEmpty').style.display = 'none';
+                
+                // Show modal
+                orderDetailModal.show();
+                
+                // Simulate loading (for demo purposes)
+                setTimeout(() => {
+                    document.getElementById('orderDetailLoading').style.display = 'none';
+                    
+                    if (storeData.hasOrder) {
+                        document.getElementById('orderDetailStore').textContent = storeData.store;
+                        document.getElementById('orderDetailTime').textContent = storeData.time;
+                        
+                        // Populate items
+                        const itemsContainer = document.getElementById('orderDetailItems');
+                        itemsContainer.innerHTML = '';
+                        
+                        storeData.items.forEach(item => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${item.name}</td>
+                                <td>${item.unit}</td>
+                                <td class="text-end">${item.quantity}</td>
+                            `;
+                            itemsContainer.appendChild(row);
+                        });
+                        
+                        document.getElementById('orderDetailContent').style.display = 'block';
+                    } else {
+                        document.getElementById('orderDetailEmpty').style.display = 'block';
+                    }
+                }, 500);
+            });
+        });
+        
+        // Export button
+        const exportBtn = document.getElementById('exportBtn');
+        exportBtn.addEventListener('click', function() {
+            window.open('{% url "admin_dashboard:export_orders" %}?date={{ today|date:"Y-m-d" }}', '_blank');
+        });
+        
+        // Notification functionality
+        const notificationModal = new bootstrap.Modal(document.getElementById('notificationModal'));
+        const successModal = new bootstrap.Modal(document.getElementById('successModal'));
+        const errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
+        
+        // Show notification modal
+        const sendReminderBtn = document.getElementById('sendReminderBtn');
+        if (sendReminderBtn) {
+            sendReminderBtn.addEventListener('click', function() {
+                notificationModal.show();
+            });
+        }
+        
+        // Send notification
+        const confirmNotificationBtn = document.getElementById('confirmNotificationBtn');
+        if (confirmNotificationBtn) {
+            confirmNotificationBtn.addEventListener('click', function() {
+                // Show loading state
+                confirmNotificationBtn.disabled = true;
+                confirmNotificationBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>處理中...';
+                
+                // Send notification
+                fetch('{% url "admin_dashboard:send_notification" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    notificationModal.hide();
+                    
+                    if (data.success) {
+                        document.getElementById('successMessage').textContent = data.message;
+                        successModal.show();
+                    } else {
+                        document.getElementById('errorMessage').textContent = data.message || '發生錯誤，請稍後再試';
+                        errorModal.show();
+                    }
+                })
+                .catch(error => {
+                    notificationModal.hide();
+                    document.getElementById('errorMessage').textContent = '發生錯誤，請稍後再試';
+                    errorModal.show();
+                    console.error('Error:', error);
+                })
+                .finally(() => {
+                    // Restore button state
+                    confirmNotificationBtn.disabled = false;
+                    confirmNotificationBtn.innerHTML = '確認發送';
+                });
+            });
+        }
+        
+        // Helper function to get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    });
+</script>
+{% endblock %} 

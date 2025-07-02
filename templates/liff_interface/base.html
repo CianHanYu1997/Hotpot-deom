@@ -1,0 +1,150 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}餐飲管理系統{% endblock %}</title>
+    <!-- Favicon -->
+    <link rel="icon" href="{% static 'images/favicon.svg' %}" type="image/svg+xml">
+    <!-- LINE LIFF SDK -->
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <style>
+        body {
+            background-color: #f5f5f5;
+            font-family: 'Noto Sans TC', sans-serif;
+            padding-bottom: 70px; /* Space for fixed footer */
+        }
+        .navbar {
+            background-color: #00B900; /* LINE green */
+        }
+        .navbar-brand {
+            color: white;
+            font-weight: bold;
+        }
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .btn-primary {
+            background-color: #00B900;
+            border-color: #00B900;
+        }
+        .btn-primary:hover {
+            background-color: #009900;
+            border-color: #009900;
+        }
+        .footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            background-color: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+            padding: 10px 0;
+            z-index: 1000;
+        }
+        .footer-btn {
+            width: 100%;
+            text-align: center;
+            color: #495057;
+        }
+        .footer-btn.active {
+            color: #00B900;
+        }
+        .footer-btn i {
+            font-size: 1.5rem;
+        }
+    </style>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="{% static 'css/custom.css' %}" rel="stylesheet">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'liff_interface:home' %}">
+                <i class="fas fa-utensils me-2"></i>餐飲管理系統
+            </a>
+            <div class="ms-auto text-white">
+                <i class="fas fa-user me-1"></i> <span id="userName">店長</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Footer Navigation -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-4">
+                    <a href="{% url 'liff_interface:revenue' %}" class="footer-btn {% if request.resolver_match.url_name == 'revenue' %}active{% endif %}">
+                        <i class="fas fa-chart-line d-block mb-1"></i>
+                        <small>營收回報</small>
+                    </a>
+                </div>
+                <div class="col-4">
+                    <a href="{% url 'liff_interface:order' %}" class="footer-btn {% if request.resolver_match.url_name == 'order' %}active{% endif %}">
+                        <i class="fas fa-shopping-basket d-block mb-1"></i>
+                        <small>今日叫菜</small>
+                    </a>
+                </div>
+                <div class="col-4">
+                    <a href="{% url 'liff_interface:history' %}" class="footer-btn {% if request.resolver_match.url_name == 'history' %}active{% endif %}">
+                        <i class="fas fa-history d-block mb-1"></i>
+                        <small>歷史紀錄</small>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Common JS -->
+    <script src="{% static 'js/common.js' %}"></script>
+    
+    <!-- LIFF Init -->
+    <script>
+        // LIFF initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize LIFF
+            liff.init({
+                liffId: "{{ liff_id }}"
+            }).then(() => {
+                // LIFF initialized successfully
+                if (liff.isLoggedIn()) {
+                    // Get user profile if logged in
+                    liff.getProfile().then(profile => {
+                        document.getElementById('userName').textContent = profile.displayName;
+                    }).catch(err => {
+                        console.error('Error getting profile:', err);
+                    });
+                } else {
+                    // Not logged in, for demo we'll keep the default name
+                    console.log('User not logged in');
+                }
+            }).catch(err => {
+                // For demo purposes, we'll ignore LIFF initialization errors
+                console.log('LIFF initialization failed (demo mode):', err);
+            });
+        });
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
+ 

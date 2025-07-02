@@ -1,0 +1,156 @@
+{% extends 'admin_dashboard/base.html' %}
+
+{% block title %}營收詳細 - {{ revenue.store.name }} - {{ revenue.date }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">編輯營收記錄</h4>
+                    <div>
+                        <a href="{% url 'admin_dashboard:revenue_crud' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left"></i> 返回列表
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    {% if messages %}
+                        {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">分店</label>
+                                    <input type="text" class="form-control" value="{{ revenue.store.name }}" readonly>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">日期</label>
+                                    <input type="text" class="form-control" value="{{ revenue.date }}" readonly>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">營收金額 *</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" name="amount" class="form-control" 
+                                               value="{{ revenue.amount }}" required min="0" step="0.01">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">狀態 *</label>
+                                    <select name="status" class="form-select" required>
+                                        {% for value, display in status_choices %}
+                                        <option value="{{ value }}" {% if revenue.status == value %}selected{% endif %}>
+                                            {{ display }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">備註</label>
+                            <textarea name="notes" class="form-control" rows="3">{{ revenue.notes }}</textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">變更人員</label>
+                            <input type="text" name="changed_by" class="form-control" value="管理員" required>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> 儲存變更
+                            </button>
+                            
+                            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                                <i class="fas fa-trash"></i> 刪除記錄
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">變更歷史</h5>
+                </div>
+                <div class="card-body">
+                    {% for log in logs %}
+                    <div class="d-flex mb-3 {% if not forloop.last %}border-bottom pb-3{% endif %}">
+                        <div class="flex-shrink-0 me-3">
+                            {% if log.action == 'create' %}
+                                <span class="badge bg-success"><i class="fas fa-plus"></i></span>
+                            {% elif log.action == 'update' %}
+                                <span class="badge bg-warning"><i class="fas fa-edit"></i></span>
+                            {% elif log.action == 'delete' %}
+                                <span class="badge bg-danger"><i class="fas fa-trash"></i></span>
+                            {% elif log.action == 'submit' %}
+                                <span class="badge bg-primary"><i class="fas fa-paper-plane"></i></span>
+                            {% endif %}
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold">{{ log.get_action_display }}</div>
+                            <small class="text-muted">
+                                {{ log.changed_at|date:"m/d H:i" }} by {{ log.changed_by }}
+                            </small>
+                            {% if log.notes %}
+                            <div class="small mt-1">{{ log.notes }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted">暫無變更記錄</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 刪除確認 Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">確認刪除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>確定要刪除 <strong>{{ revenue.store.name }}</strong> 在 <strong>{{ revenue.date }}</strong> 的營收記錄嗎？</p>
+                <p class="text-danger"><i class="fas fa-exclamation-triangle"></i> 此操作無法復原！</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <form method="post" action="{% url 'admin_dashboard:revenue_delete' revenue.id %}" class="d-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="deleted_by" value="管理員">
+                    <button type="submit" class="btn btn-danger">確認刪除</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

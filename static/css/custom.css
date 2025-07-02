@@ -1,0 +1,68 @@
+/* Custom styles for the restaurant management system */
+
+/* Common styles */
+.cursor-pointer {
+    cursor: pointer;
+}
+
+/* LIFF interface styles */
+.liff-container {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+/* Admin dashboard styles */
+.stat-card {
+    transition: transform 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+/* Animation for success messages */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 30px, 0);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+    }
+}
+
+.fade-in-up {
+    animation: fadeInUp 0.5s;
+}
+
+/* Custom button styles */
+.btn-line {
+    background-color: #00B900;
+    border-color: #00B900;
+    color: white;
+}
+
+.btn-line:hover {
+    background-color: #009900;
+    border-color: #009900;
+    color: white;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .stat-card {
+        margin-bottom: 15px;
+    }
+
+    .sidebar {
+        position: static;
+        height: auto;
+    }
+
+    .sidebar-sticky {
+        height: auto;
+        position: relative;
+    }
+}

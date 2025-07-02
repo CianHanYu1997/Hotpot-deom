@@ -1,0 +1,442 @@
+{% extends 'liff_interface/base.html' %}
+
+{% block title %}今日叫菜 | 餐飲管理系統{% endblock %}
+
+{% load custom_filters %}
+
+{% block extra_css %}
+<style>
+    .ingredient-card {
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 10px;
+        background-color: white;
+    }
+    .ingredient-card:hover {
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .quantity-control {
+        display: flex;
+        align-items: center;
+    }
+    .quantity-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background-color: #f0f0f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        user-select: none;
+        font-weight: bold;
+    }
+    .quantity-input {
+        width: 50px;
+        text-align: center;
+        border: none;
+        background: transparent;
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+    .category-tab {
+        cursor: pointer;
+        padding: 10px 15px;
+        border-radius: 20px;
+        margin-right: 8px;
+        margin-bottom: 8px;
+        white-space: nowrap;
+    }
+    .category-tab.active {
+        background-color: #00B900;
+        color: white;
+    }
+    .category-tabs-container {
+        overflow-x: auto;
+        white-space: nowrap;
+        padding-bottom: 10px;
+    }
+    .order-summary {
+        position: sticky;
+        bottom: 80px;
+        z-index: 900;
+    }
+    .badge-count {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background-color: #FF4500;
+        color: white;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card mb-4">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">今日叫菜</h5>
+                <span class="badge bg-primary">{{ today|date:"Y-m-d" }}</span>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">分店</label>
+                    <input type="text" class="form-control" value="{{ store.name }}" disabled>
+                    <input type="hidden" id="storeId" value="{{ store.id }}">
+                </div>
+                
+                <!-- Category Tabs -->
+                <div class="mb-3">
+                    <label class="form-label">食材分類</label>
+                    <div class="category-tabs-container">
+                        <div class="d-flex">
+                            {% for category, ingredients in ingredients_by_category.items %}
+                            <div class="category-tab {% if forloop.first %}active{% endif %}" data-category="{{ category }}">
+                                {{ category }}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Ingredients List -->
+                {% for category, ingredients in ingredients_by_category.items %}
+                <div class="ingredient-category" id="category-{{ category }}" {% if not forloop.first %}style="display: none;"{% endif %}>
+                    {% for ingredient in ingredients %}
+                    <div class="ingredient-card" data-id="{{ ingredient.id }}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">{{ ingredient.name }}</h6>
+                                <small class="text-muted">{{ ingredient.unit }}</small>
+                            </div>
+                            <div class="quantity-control">
+                                <div class="quantity-btn minus-btn">-</div>
+                                <input type="number" class="quantity-input" value="{{ order_items|get_item:ingredient.id|default:'0' }}" min="0" max="99" readonly>
+                                <div class="quantity-btn plus-btn">+</div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Order Summary -->
+<div class="order-summary" id="orderSummary" style="display: none;">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card bg-primary text-white">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span id="itemCount" class="me-2">0</span>項食材
+                        </div>
+                        <button class="btn btn-light btn-sm" id="viewCartBtn">
+                            查看清單
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Submit Order Button -->
+<div class="row justify-content-center mt-4 mb-5">
+    <div class="col-md-8">
+        <div class="d-grid">
+            <button class="btn btn-primary btn-lg" id="submitOrderBtn">
+                <i class="fas fa-paper-plane me-2"></i>提交叫菜單
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Cart Modal -->
+<div class="modal fade" id="cartModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">叫菜清單</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="cartItems" class="mb-3">
+                    <!-- Cart items will be inserted here -->
+                </div>
+                <div class="alert alert-info" id="emptyCartMessage">
+                    <i class="fas fa-info-circle me-2"></i>您尚未選擇任何食材
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+                <button type="button" class="btn btn-primary" id="confirmOrderBtn">確認提交</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-body text-center p-5">
+                <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
+                <h3 class="mt-4 mb-3">提交成功！</h3>
+                <p class="mb-4">您的叫菜單已成功提交。</p>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">確定</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Error Modal -->
+<div class="modal fade" id="errorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-body text-center p-5">
+                <i class="fas fa-exclamation-circle text-danger" style="font-size: 4rem;"></i>
+                <h3 class="mt-4 mb-3">提交失敗</h3>
+                <p class="mb-4" id="errorMessage">發生錯誤，請稍後再試。</p>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">確定</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize variables
+        const ingredients = {};
+        const cart = {};
+        let totalItems = 0;
+        
+        // DOM elements
+        const categoryTabs = document.querySelectorAll('.category-tab');
+        const ingredientCards = document.querySelectorAll('.ingredient-card');
+        const orderSummary = document.getElementById('orderSummary');
+        const itemCountElement = document.getElementById('itemCount');
+        const viewCartBtn = document.getElementById('viewCartBtn');
+        const submitOrderBtn = document.getElementById('submitOrderBtn');
+        const confirmOrderBtn = document.getElementById('confirmOrderBtn');
+        const cartItemsContainer = document.getElementById('cartItems');
+        const emptyCartMessage = document.getElementById('emptyCartMessage');
+        
+        // Modals
+        const cartModal = new bootstrap.Modal(document.getElementById('cartModal'));
+        const successModal = new bootstrap.Modal(document.getElementById('successModal'));
+        const errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
+        
+        // Initialize ingredients data
+        ingredientCards.forEach(card => {
+            const id = card.dataset.id;
+            const name = card.querySelector('h6').textContent;
+            const unit = card.querySelector('small').textContent;
+            const quantityInput = card.querySelector('.quantity-input');
+            const initialQuantity = parseInt(quantityInput.value);
+            
+            ingredients[id] = { name, unit };
+            
+            if (initialQuantity > 0) {
+                cart[id] = initialQuantity;
+                totalItems += initialQuantity;
+            }
+        });
+        
+        // Update UI based on initial cart state
+        updateOrderSummary();
+        
+        // Category tab switching
+        categoryTabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                const category = this.dataset.category;
+                
+                // Update active tab
+                categoryTabs.forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Show selected category, hide others
+                document.querySelectorAll('.ingredient-category').forEach(cat => {
+                    cat.style.display = 'none';
+                });
+                document.getElementById(`category-${category}`).style.display = 'block';
+            });
+        });
+        
+        // Quantity controls
+        ingredientCards.forEach(card => {
+            const id = card.dataset.id;
+            const minusBtn = card.querySelector('.minus-btn');
+            const plusBtn = card.querySelector('.plus-btn');
+            const quantityInput = card.querySelector('.quantity-input');
+            
+            minusBtn.addEventListener('click', function() {
+                let quantity = parseInt(quantityInput.value);
+                if (quantity > 0) {
+                    quantity--;
+                    quantityInput.value = quantity;
+                    updateCart(id, quantity);
+                }
+            });
+            
+            plusBtn.addEventListener('click', function() {
+                let quantity = parseInt(quantityInput.value);
+                if (quantity < 99) {
+                    quantity++;
+                    quantityInput.value = quantity;
+                    updateCart(id, quantity);
+                }
+            });
+        });
+        
+        // View cart button
+        viewCartBtn.addEventListener('click', function() {
+            updateCartModal();
+            cartModal.show();
+        });
+        
+        // Submit order button
+        submitOrderBtn.addEventListener('click', function() {
+            if (totalItems === 0) {
+                document.getElementById('errorMessage').textContent = '請至少選擇一項食材';
+                errorModal.show();
+                return;
+            }
+            
+            updateCartModal();
+            cartModal.show();
+        });
+        
+        // Confirm order button
+        confirmOrderBtn.addEventListener('click', function() {
+            if (totalItems === 0) {
+                document.getElementById('errorMessage').textContent = '請至少選擇一項食材';
+                errorModal.show();
+                return;
+            }
+            
+            // Prepare order items
+            const orderItems = [];
+            for (const id in cart) {
+                if (cart[id] > 0) {
+                    orderItems.push({
+                        ingredient_id: id,
+                        quantity: cart[id]
+                    });
+                }
+            }
+            
+            // Show loading state
+            confirmOrderBtn.disabled = true;
+            confirmOrderBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>處理中...';
+            
+            // Submit order
+            fetch('{% url "liff_interface:submit_order" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    store_id: document.getElementById('storeId').value,
+                    items: orderItems,
+                    date: '{{ today|date:"Y-m-d" }}'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                cartModal.hide();
+                
+                if (data.success) {
+                    successModal.show();
+                    // Reload page after modal is closed
+                    document.getElementById('successModal').addEventListener('hidden.bs.modal', function () {
+                        window.location.reload();
+                    });
+                } else {
+                    document.getElementById('errorMessage').textContent = data.message || '發生錯誤，請稍後再試';
+                    errorModal.show();
+                }
+            })
+            .catch(error => {
+                cartModal.hide();
+                document.getElementById('errorMessage').textContent = '發生錯誤，請稍後再試';
+                errorModal.show();
+                console.error('Error:', error);
+            })
+            .finally(() => {
+                // Restore button state
+                confirmOrderBtn.disabled = false;
+                confirmOrderBtn.innerHTML = '確認提交';
+            });
+        });
+        
+        // Helper function to update cart
+        function updateCart(id, quantity) {
+            if (quantity > 0) {
+                cart[id] = quantity;
+            } else {
+                delete cart[id];
+            }
+            
+            updateOrderSummary();
+        }
+        
+        // Helper function to update order summary
+        function updateOrderSummary() {
+            totalItems = 0;
+            for (const id in cart) {
+                totalItems += cart[id];
+            }
+            
+            itemCountElement.textContent = totalItems;
+            
+            if (totalItems > 0) {
+                orderSummary.style.display = 'block';
+            } else {
+                orderSummary.style.display = 'none';
+            }
+        }
+        
+        // Helper function to update cart modal
+        function updateCartModal() {
+            cartItemsContainer.innerHTML = '';
+            
+            if (totalItems > 0) {
+                emptyCartMessage.style.display = 'none';
+                
+                for (const id in cart) {
+                    if (cart[id] > 0) {
+                        const item = document.createElement('div');
+                        item.className = 'mb-2 d-flex justify-content-between align-items-center';
+                        item.innerHTML = `
+                            <div>
+                                <span class="fw-bold">${ingredients[id].name}</span>
+                                <small class="text-muted ms-2">${ingredients[id].unit}</small>
+                            </div>
+                            <span class="badge bg-primary rounded-pill">${cart[id]}</span>
+                        `;
+                        cartItemsContainer.appendChild(item);
+                    }
+                }
+            } else {
+                emptyCartMessage.style.display = 'block';
+            }
+        }
+    });
+</script>
+{% endblock %} 

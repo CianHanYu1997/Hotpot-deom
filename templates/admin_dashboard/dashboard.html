@@ -1,0 +1,327 @@
+{% extends 'admin_dashboard/base.html' %}
+
+{% block title %}主控台 | 餐飲管理系統{% endblock %}
+
+{% load custom_filters %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">主控台</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="refreshBtn">
+                <i class="fas fa-sync-alt me-1"></i>重新整理
+            </button>
+        </div>
+        <span class="text-muted">{{ today|date:"Y-m-d" }}</span>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row">
+    <div class="col-md-4">
+        <div class="card stat-card revenue">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-label">今日總營收</div>
+                        <div class="stat-value">NT$ {{ today_revenue|floatformat:0 }}</div>
+                        <div class="stat-change mt-2">
+                            {% if revenue_change > 0 %}
+                            <span class="text-success">
+                                <i class="fas fa-arrow-up me-1"></i>{{ revenue_change|floatformat:1 }}%
+                            </span>
+                            {% elif revenue_change < 0 %}
+                            <span class="text-danger">
+                                <i class="fas fa-arrow-down me-1"></i>{{ revenue_change|abs_value|floatformat:1 }}%
+                            </span>
+                            {% else %}
+                            <span class="text-muted">
+                                <i class="fas fa-minus me-1"></i>0%
+                            </span>
+                            {% endif %}
+                            <small class="text-muted ms-1">與昨日相比</small>
+                        </div>
+                    </div>
+                    <div class="stat-icon text-success">
+                        <i class="fas fa-dollar-sign"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card orders">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-label">叫菜完成率</div>
+                        <div class="stat-value">
+                            {% with completed=stores|length|sub:incomplete_orders|length %}
+                            {{ completed|div:stores|length|mul:100|floatformat:0 }}%
+                            {% endwith %}
+                        </div>
+                        <div class="stat-change mt-2">
+                            <span class="text-muted">
+                                {{ stores|length|sub:incomplete_orders|length }}/{{ stores|length }} 家分店
+                            </span>
+                        </div>
+                    </div>
+                    <div class="stat-icon text-warning">
+                        <i class="fas fa-shopping-basket"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card alerts">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-label">未完成叫菜</div>
+                        <div class="stat-value">{{ incomplete_orders|length }} 家</div>
+                        <div class="mt-2">
+                            {% if incomplete_orders %}
+                            <button class="btn btn-sm btn-danger" id="sendNotificationBtn">
+                                <i class="fas fa-bell me-1"></i>發送提醒
+                            </button>
+                            {% else %}
+                            <span class="text-success">
+                                <i class="fas fa-check-circle me-1"></i>全部完成
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="stat-icon text-danger">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Revenue Chart -->
+<div class="row mt-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">近7日營收趨勢</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="revenueChart" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">未完成叫菜分店</h5>
+            </div>
+            <div class="card-body">
+                {% if incomplete_orders %}
+                <ul class="list-group list-group-flush">
+                    {% for store in incomplete_orders %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ store.name }}
+                        <span class="badge bg-warning rounded-pill">未完成</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-check-circle text-success mb-3" style="font-size: 3rem;"></i>
+                    <p class="mb-0">所有分店已完成叫菜</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Notification Modal -->
+<div class="modal fade" id="notificationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">發送提醒</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>確定要發送提醒給未完成叫菜的分店嗎？</p>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    提醒將透過Line發送給店長
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="confirmNotificationBtn">
+                    確認發送
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-body text-center p-5">
+                <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
+                <h3 class="mt-4 mb-3">發送成功！</h3>
+                <p class="mb-4" id="successMessage">提醒已成功發送。</p>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">確定</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Error Modal -->
+<div class="modal fade" id="errorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-body text-center p-5">
+                <i class="fas fa-exclamation-circle text-danger" style="font-size: 4rem;"></i>
+                <h3 class="mt-4 mb-3">發送失敗</h3>
+                <p class="mb-4" id="errorMessage">發生錯誤，請稍後再試。</p>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">確定</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Chart initialization
+        const ctx = document.getElementById('revenueChart').getContext('2d');
+        const chartData = {{ last_7_days|safe }};
+        
+        const revenueChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: chartData.map(item => item.date),
+                datasets: [{
+                    label: '營收金額',
+                    data: chartData.map(item => item.revenue),
+                    backgroundColor: 'rgba(40, 167, 69, 0.2)',
+                    borderColor: 'rgba(40, 167, 69, 1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(40, 167, 69, 1)',
+                    pointBorderColor: '#fff',
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `NT$ ${context.raw.toLocaleString()}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return 'NT$ ' + value.toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Notification functionality
+        const notificationModal = new bootstrap.Modal(document.getElementById('notificationModal'));
+        const successModal = new bootstrap.Modal(document.getElementById('successModal'));
+        const errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
+        
+        // Show notification modal
+        const sendNotificationBtn = document.getElementById('sendNotificationBtn');
+        if (sendNotificationBtn) {
+            sendNotificationBtn.addEventListener('click', function() {
+                notificationModal.show();
+            });
+        }
+        
+        // Send notification
+        const confirmNotificationBtn = document.getElementById('confirmNotificationBtn');
+        if (confirmNotificationBtn) {
+            confirmNotificationBtn.addEventListener('click', function() {
+                // Show loading state
+                confirmNotificationBtn.disabled = true;
+                confirmNotificationBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>處理中...';
+                
+                // Send notification
+                fetch('{% url "admin_dashboard:send_notification" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    notificationModal.hide();
+                    
+                    if (data.success) {
+                        document.getElementById('successMessage').textContent = data.message;
+                        successModal.show();
+                    } else {
+                        document.getElementById('errorMessage').textContent = data.message || '發生錯誤，請稍後再試';
+                        errorModal.show();
+                    }
+                })
+                .catch(error => {
+                    notificationModal.hide();
+                    document.getElementById('errorMessage').textContent = '發生錯誤，請稍後再試';
+                    errorModal.show();
+                    console.error('Error:', error);
+                })
+                .finally(() => {
+                    // Restore button state
+                    confirmNotificationBtn.disabled = false;
+                    confirmNotificationBtn.innerHTML = '確認發送';
+                });
+            });
+        }
+        
+        // Refresh button
+        const refreshBtn = document.getElementById('refreshBtn');
+        refreshBtn.addEventListener('click', function() {
+            location.reload();
+        });
+        
+        // Helper function to get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    });
+</script>
+{% endblock %} 

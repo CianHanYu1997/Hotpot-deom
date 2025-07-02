@@ -1,0 +1,121 @@
+{% extends 'admin_dashboard/base.html' %}
+
+{% block title %}營收管理 - 餐廳管理系統{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">營收管理</h4>
+                    <div>
+                        <a href="{% url 'admin_dashboard:revenue_create' %}" class="btn btn-primary me-2">
+                            <i class="fas fa-plus"></i> 新增營收
+                        </a>
+                        <a href="{% url 'admin_dashboard:revenue_logs' %}" class="btn btn-info">
+                            <i class="fas fa-history"></i> 變更紀錄
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <!-- 篩選表單 -->
+                    <form method="get" class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <label class="form-label">分店</label>
+                            <select name="store_id" class="form-select">
+                                <option value="">全部分店</option>
+                                {% for store in stores %}
+                                <option value="{{ store.id }}" {% if selected_store == store.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ store.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">狀態</label>
+                            <select name="status" class="form-select">
+                                <option value="">全部狀態</option>
+                                {% for value, display in status_choices %}
+                                <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>
+                                    {{ display }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">開始日期</label>
+                            <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">結束日期</label>
+                            <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="submit" class="btn btn-outline-primary me-2">
+                                <i class="fas fa-search"></i> 篩選
+                            </button>
+                            <a href="{% url 'admin_dashboard:revenue_crud' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> 清除
+                            </a>
+                        </div>
+                    </form>
+
+                    <!-- 營收列表 -->
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>日期</th>
+                                    <th>分店</th>
+                                    <th>金額</th>
+                                    <th>狀態</th>
+                                    <th>最後更新</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for revenue in revenues %}
+                                <tr>
+                                    <td>{{ revenue.date }}</td>
+                                    <td>{{ revenue.store.name }}</td>
+                                    <td class="text-end">
+                                        <strong>${{ revenue.amount|floatformat:0 }}</strong>
+                                    </td>
+                                    <td>
+                                        {% if revenue.status == 'pending' %}
+                                            <span class="badge bg-warning">{{ revenue.get_status_display }}</span>
+                                        {% elif revenue.status == 'submitted' %}
+                                            <span class="badge bg-success">{{ revenue.get_status_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {{ revenue.updated_at|date:"m/d H:i" }}<br>
+                                            by {{ revenue.updated_by }}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'admin_dashboard:revenue_detail' revenue.id %}" 
+                                           class="btn btn-sm btn-outline-info">
+                                            <i class="fas fa-eye"></i> 查看
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        沒有找到符合條件的營收記錄
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
