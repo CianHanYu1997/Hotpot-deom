@@ -51,7 +51,7 @@ class Revenue(models.Model):
         ordering = ['-date']
 
     def __str__(self):
-        return f"{self.store.name} - {self.date} - ${self.amount} ({self.get_status_display()})"
+        return f"{self.store.name} - {self.date} - ${float(self.amount):.2f} ({self.get_status_display()})"
 
 
 class Ingredient(models.Model):
@@ -120,5 +120,5 @@ class RevenueLog(models.Model):
         
     def __str__(self):
         if self.action == 'delete':
-            return f"{self.store.name} - {self.date} - {self.get_action_display()} (${self.old_amount})"
+            return f"{self.store.name} - {self.date} - {self.get_action_display()} (${float(self.old_amount):.2f})"
         return f"{self.store.name} - {self.date} - {self.get_action_display()}"
